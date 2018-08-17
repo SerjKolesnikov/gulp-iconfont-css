@@ -4,19 +4,23 @@ var path = require('path'),
 	gutil = require('gulp-util'),
 	consolidate = require('consolidate'),
 	_ = require('lodash'),
-	Stream = require('stream');
+	Stream = require('stream'),
+    fs = require('fs');
 
 var PLUGIN_NAME  = 'gulp-iconfont-css';
 
 function iconfontCSS(config) {
-	var glyphMap = [],
-		currentGlyph,
-		currentCodePoint,
-		inputFilePrefix,
-		stream,
-		outputFile,
-		engine,
-		cssClass;
+    var glyphMap = [],
+        iconsMap = {},
+        currentGlyph,
+        currentCodePoint,
+        lastCodepoint,
+        inputFilePrefix,
+        stream,
+        outputFile,
+        engine,
+        cssClass,
+        oldIcon;
 
 	// Set default values
 	config = _.merge({
@@ -60,6 +64,15 @@ function iconfontCSS(config) {
 		objectMode: true
 	});
 
+    fs.readFile('./test.json', 'utf8', function(err, data) {
+		if (err)
+		    throw err;
+
+		config.fixedCodepoints = data ? JSON.parse(data) : [];
+		lastCodepoint = config.fixedCodepoints.length ? "0x" + config.fixedCodepoints[config.fixedCodepoints.length - 1].codePoint : null;
+		console.log('Icons Map Read!');
+	});
+
 	stream._transform = function(file, unused, cb) {
 		var fileName;
 
@@ -80,13 +93,20 @@ function iconfontCSS(config) {
 
 		fileName = path.basename(file.path, '.svg');
 
-		if (config.fixedCodepoints && config.fixedCodepoints[fileName]) {
-			currentCodePoint = config.fixedCodepoints[fileName].toString(16).toUpperCase();
-		} else {
-			currentCodePoint = (currentGlyph++).toString(16).toUpperCase();
-		}
+        oldIcon = config.fixedCodepoints.find(function(icon) {
+            return icon.fileName == fileName;
+        });
 
-		// Add glyph
+        if (oldIcon) {
+            currentCodePoint = oldIcon.codePoint;
+            currentGlyph = ("0x" + currentCodePoint);
+            currentGlyph++;
+        } else {
+            currentCodePoint = (lastCodepoint ? ++lastCodepoint : currentGlyph++).toString(16).toUpperCase();
+        }
+
+
+        // Add glyph
 		glyphMap.push({
 			fileName: fileName,
 			codePoint: currentCodePoint
@@ -114,6 +134,20 @@ function iconfontCSS(config) {
 	stream._flush = function(cb) {
 		var content;
 		if (glyphMap.length) {
+            fs.writeFile('test.json', JSON.stringify(glyphMap), function(err) {
+                if (err)
+                    throw err;
+                console.log('Icons Map Saved!');
+            });
+            glyphMap.sort(function(a, b){
+                var iconA = a.codePoint,
+                    iconB = b.codePoint;
+
+                if(iconA < iconB) return -1;
+                if(iconA > iconB) return 1;
+
+                return 0;
+            });
 			consolidate[config.engine](config.path, {
 					glyphs: glyphMap,
 					fontName: config.fontName,
