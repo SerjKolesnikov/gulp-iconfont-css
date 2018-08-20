@@ -20,7 +20,7 @@ function iconfontCSS(config) {
         outputFile,
         engine,
         cssClass,
-        oldIcon;
+        savedGlyph;
 
 	// Set default values
 	config = _.merge({
@@ -32,7 +32,8 @@ function iconfontCSS(config) {
 		fixedCodepoints: false,
 		cssClass: 'icon',
 		aliases: {},
-		cacheBuster: ''
+		cacheBuster: '',
+        glyphMapFilePath: ''
 	}, config);
 
 	// Enable default stylesheet generators
@@ -64,14 +65,16 @@ function iconfontCSS(config) {
 		objectMode: true
 	});
 
-    fs.readFile('./test.json', 'utf8', function(err, data) {
-		if (err)
-		    throw err;
+    if (config.glyphMapFilePath) {
+        fs.readFile(config.glyphMapFilePath, 'utf8', function (err, data) {
+            if (err && err.code != 'ENOENT')
+                throw err;
 
-		config.fixedCodepoints = data ? JSON.parse(data) : [];
-		lastCodepoint = config.fixedCodepoints.length ? "0x" + config.fixedCodepoints[config.fixedCodepoints.length - 1].codePoint : null;
-		console.log('Icons Map Read!');
-	});
+            config.fixedCodepoints = data ? JSON.parse(data) : [];
+            lastCodepoint = config.fixedCodepoints.length ? "0x" + config.fixedCodepoints[config.fixedCodepoints.length - 1].codePoint : null;
+            console.log('Icons Map Read!');
+        });
+    }
 
 	stream._transform = function(file, unused, cb) {
 		var fileName;
@@ -93,18 +96,24 @@ function iconfontCSS(config) {
 
 		fileName = path.basename(file.path, '.svg');
 
-        oldIcon = config.fixedCodepoints.find(function(icon) {
-            return icon.fileName == fileName;
-        });
-
-        if (oldIcon) {
-            currentCodePoint = oldIcon.codePoint;
-            currentGlyph = ("0x" + currentCodePoint);
-            currentGlyph++;
+        if (config.glyphMapFilePath) {
+            savedGlyph = config.fixedCodepoints.find(function(icon) {
+                return icon.fileName == fileName;
+            });
+            if (savedGlyph) {
+                currentCodePoint = savedGlyph.codePoint;
+                currentGlyph = ("0x" + currentCodePoint);
+                currentGlyph++;
+            } else {
+                currentCodePoint = (lastCodepoint ? ++lastCodepoint : currentGlyph++).toString(16).toUpperCase();
+            }
         } else {
-            currentCodePoint = (lastCodepoint ? ++lastCodepoint : currentGlyph++).toString(16).toUpperCase();
+            if (config.fixedCodepoints && config.fixedCodepoints[fileName]) {
+                currentCodePoint = config.fixedCodepoints[fileName].toString(16).toUpperCase();
+            } else {
+                currentCodePoint = (currentGlyph++).toString(16).toUpperCase();
+            }
         }
-
 
         // Add glyph
 		glyphMap.push({
@@ -134,20 +143,24 @@ function iconfontCSS(config) {
 	stream._flush = function(cb) {
 		var content;
 		if (glyphMap.length) {
-            fs.writeFile('test.json', JSON.stringify(glyphMap), function(err) {
-                if (err)
-                    throw err;
-                console.log('Icons Map Saved!');
-            });
-            glyphMap.sort(function(a, b){
-                var iconA = a.codePoint,
-                    iconB = b.codePoint;
 
-                if(iconA < iconB) return -1;
-                if(iconA > iconB) return 1;
+            if (config.glyphMapFilePath) {
+                glyphMap.sort(function (a, b) {
+                    var iconA = a.codePoint,
+                        iconB = b.codePoint;
 
-                return 0;
-            });
+                    if (iconA < iconB) return -1;
+                    if (iconA > iconB) return 1;
+
+                    return 0;
+                });
+                fs.writeFile(config.glyphMapFilePath, JSON.stringify(glyphMap), function (err) {
+                    if (err)
+                        throw err;
+                    console.log('Icons Map Saved!');
+                });
+            }
+
 			consolidate[config.engine](config.path, {
 					glyphs: glyphMap,
 					fontName: config.fontName,
