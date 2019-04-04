@@ -1,7 +1,8 @@
 'use strict';
 
 var path = require('path'),
-	gutil = require('gulp-util'),
+	Vinyl = require('vinyl'),
+	PluginError = require('plugin-error'),
 	consolidate = require('consolidate'),
 	_ = require('lodash'),
 	Stream = require('stream'),
@@ -40,21 +41,21 @@ function iconfontCSS(config) {
 	if(!config.path) {
 		config.path = 'scss';
 	}
-	if(/^(scss|less|css)$/i.test(config.path)) {
+	if(/^(scss|sass|less|css)$/i.test(config.path)) {
 		config.path = __dirname + '/templates/_icons.' + config.path;
 	}
 
 	// Validate config
 	if (!config.fontName) {
-		throw new gutil.PluginError(PLUGIN_NAME, 'Missing option "fontName"');
+		throw new PluginError(PLUGIN_NAME, 'Missing option "fontName"');
 	}
 	if (!consolidate[config.engine]) {
-		throw new gutil.PluginError(PLUGIN_NAME, 'Consolidate missing template engine "' + config.engine + '"');
+		throw new PluginError(PLUGIN_NAME, 'Consolidate missing template engine "' + config.engine + '"');
 	}
 	try {
 		engine = require(config.engine);
 	} catch(e) {
-		throw new gutil.PluginError(PLUGIN_NAME, 'Template engine "' + config.engine + '" not present');
+		throw new PluginError(PLUGIN_NAME, 'Template engine "' + config.engine + '" not present');
 	}
 
 	// Define starting point
@@ -86,11 +87,11 @@ function iconfontCSS(config) {
 
 		// Create output file
 		if (!outputFile) {
-			outputFile = new gutil.File({
+			outputFile = new Vinyl({
 				base: file.base,
 				cwd: file.cwd,
 				path: path.join(file.base, config.targetPath),
-				contents: file.isBuffer() ? new Buffer(0) : new Stream.PassThrough()
+				contents: file.isBuffer() ? Buffer.alloc(0) : new Stream.PassThrough()
 			});
 		}
 
@@ -170,15 +171,10 @@ function iconfontCSS(config) {
 					cacheBusterQueryString: config.cacheBuster ? '?' + config.cacheBuster : ''
 				}, function(err, html) {
 					if (err) {
-						throw new gutil.PluginError(PLUGIN_NAME, 'Error in template: ' + err.message);
+						throw new PluginError(PLUGIN_NAME, 'Error in template: ' + err.message);
 					}
 
-					// TODO: remove condition and the else block for version 3.0
-					if( Buffer.from ){
-						content = Buffer.from(html);
-					}else{
-						content = Buffer(html);
-					}
+					content = Buffer.from(html);
 
 					if (outputFile.isBuffer()) {
 						outputFile.contents = content;

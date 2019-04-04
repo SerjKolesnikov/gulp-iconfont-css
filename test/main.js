@@ -98,7 +98,7 @@ function testCodepointFirst() {
 
 function testCodepointFixed() {
 	it('glyphs should start with custom code point', function(done) {
-		var dest = resultsDir + '_codepoint_first';
+		var dest = resultsDir + '_codepoint_fixed';
 
 		run('css', dest, {
 			fixedCodepoints: {
@@ -143,6 +143,7 @@ function testCacheBuster() {
 
 describe('gulp-iconfont-css', function() {
 	testType('scss', 'SCSS');
+	testType('sass', 'Sass');
 	testType('less', 'Less');
 	testType('css', 'CSS');
 
