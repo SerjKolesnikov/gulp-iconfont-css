@@ -21,6 +21,7 @@
     "css"
   ],
   "dependencies": {
+    "gulp-util": "^3.0.6",
     "consolidate": "^0.13.1",
     "lodash": "^3.10.0"
   },
@@ -30,9 +31,6 @@
     "gulp": "^3.9.0",
     "gulp-iconfont": "^5.0.0",
     "mocha": "*",
-    "nextback": "^0.1.0",
-    "object-assign": "^4.0.1",
-    "plugin-error": "^1.0.1",
-    "vinyl": "^2.2.0"
+    "object-assign": "^4.0.1"
   }
 }

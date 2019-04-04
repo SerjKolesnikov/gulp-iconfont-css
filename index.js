@@ -1,28 +1,26 @@
 'use strict';
 
 var path = require('path'),
-	PluginError = require('plugin-error'),
-	Vinyl = require('vinyl'),
-	vfs = require('vinyl-fs'),
-	nextback = require('nextback'),
+	gutil = require('gulp-util'),
 	consolidate = require('consolidate'),
 	_ = require('lodash'),
-	Stream = require('stream');
+	Stream = require('stream'),
+    fs = require('fs');
 
 var PLUGIN_NAME  = 'gulp-iconfont-css';
 
 function iconfontCSS(config) {
-	var glyphMap = [],
-		iconsMap = {},
-		currentGlyph,
-		currentCodePoint,
-		lastCodepoint,
-		inputFilePrefix,
-		stream,
-		outputFile,
-		engine,
-		cssClass,
-		savedGlyph;
+    var glyphMap = [],
+        iconsMap = {},
+        currentGlyph,
+        currentCodePoint,
+        lastCodepoint,
+        inputFilePrefix,
+        stream,
+        outputFile,
+        engine,
+        cssClass,
+        savedGlyph;
 
 	// Set default values
 	config = _.merge({
@@ -35,7 +33,7 @@ function iconfontCSS(config) {
 		cssClass: 'icon',
 		aliases: {},
 		cacheBuster: '',
-		glyphMapFilePath: ''
+        glyphMapFilePath: ''
 	}, config);
 
 	// Enable default stylesheet generators
@@ -48,15 +46,15 @@ function iconfontCSS(config) {
 
 	// Validate config
 	if (!config.fontName) {
-		throw new PluginError(PLUGIN_NAME, 'Missing option "fontName"');
+		throw new gutil.PluginError(PLUGIN_NAME, 'Missing option "fontName"');
 	}
 	if (!consolidate[config.engine]) {
-		throw new PluginError(PLUGIN_NAME, 'Consolidate missing template engine "' + config.engine + '"');
+		throw new gutil.PluginError(PLUGIN_NAME, 'Consolidate missing template engine "' + config.engine + '"');
 	}
 	try {
 		engine = require(config.engine);
 	} catch(e) {
-		throw new PluginError(PLUGIN_NAME, 'Template engine "' + config.engine + '" not present');
+		throw new gutil.PluginError(PLUGIN_NAME, 'Template engine "' + config.engine + '" not present');
 	}
 
 	// Define starting point
@@ -67,33 +65,16 @@ function iconfontCSS(config) {
 		objectMode: true
 	});
 
-	if (config.glyphMapFilePath) {
-		var processGlyphMap = function(path, cb) {
-			var files = [],
-				globber = vfs.src(path);
-			cb = nextback(cb);
-			globber.once('error', cb);
-			globber.on('data', function(file){
-				files.push(file);
-			});
-			globber.once('end', function(){
-				cb(null, files);
-			});
-		};
+    if (config.glyphMapFilePath) {
+        fs.readFile(config.glyphMapFilePath, 'utf8', function (err, data) {
+            if (err && err.code != 'ENOENT')
+                throw err;
 
-		processGlyphMap('./glyphMap.json', function(error, files) {
-			var file = files[0]
-
-			console.log(file.contents);
-		})
-
-
-		if (1 == 2) {
-			config.fixedCodepoints = glyphMapFile.contents ? JSON.parse(glyphMapFile.contents) : [];
-			lastCodepoint = config.fixedCodepoints.length ? "0x" + config.fixedCodepoints[config.fixedCodepoints.length - 1].codePoint : null;
-			console.log('Icons Map Read!');
-		}
-	}
+            config.fixedCodepoints = data ? JSON.parse(data) : [];
+            lastCodepoint = config.fixedCodepoints.length ? "0x" + config.fixedCodepoints[config.fixedCodepoints.length - 1].codePoint : null;
+            console.log('Icons Map Read!');
+        });
+    }
 
 	stream._transform = function(file, unused, cb) {
 		var fileName;
@@ -105,7 +86,7 @@ function iconfontCSS(config) {
 
 		// Create output file
 		if (!outputFile) {
-			outputFile = new Vinyl({
+			outputFile = new gutil.File({
 				base: file.base,
 				cwd: file.cwd,
 				path: path.join(file.base, config.targetPath),
@@ -115,26 +96,26 @@ function iconfontCSS(config) {
 
 		fileName = path.basename(file.path, '.svg');
 
-		if (config.glyphMapFilePath) {
-			savedGlyph = config.fixedCodepoints.find(function(icon) {
-				return icon.fileName == fileName;
-			});
-			if (savedGlyph) {
-				currentCodePoint = savedGlyph.codePoint;
-				currentGlyph = ("0x" + currentCodePoint);
-				currentGlyph++;
-			} else {
-				currentCodePoint = (lastCodepoint ? ++lastCodepoint : currentGlyph++).toString(16).toUpperCase();
-			}
-		} else {
-			if (config.fixedCodepoints && config.fixedCodepoints[fileName]) {
-				currentCodePoint = config.fixedCodepoints[fileName].toString(16).toUpperCase();
-			} else {
-				currentCodePoint = (currentGlyph++).toString(16).toUpperCase();
-			}
-		}
+        if (config.glyphMapFilePath) {
+            savedGlyph = config.fixedCodepoints.find(function(icon) {
+                return icon.fileName == fileName;
+            });
+            if (savedGlyph) {
+                currentCodePoint = savedGlyph.codePoint;
+                currentGlyph = ("0x" + currentCodePoint);
+                currentGlyph++;
+            } else {
+                currentCodePoint = (lastCodepoint ? ++lastCodepoint : currentGlyph++).toString(16).toUpperCase();
+            }
+        } else {
+            if (config.fixedCodepoints && config.fixedCodepoints[fileName]) {
+                currentCodePoint = config.fixedCodepoints[fileName].toString(16).toUpperCase();
+            } else {
+                currentCodePoint = (currentGlyph++).toString(16).toUpperCase();
+            }
+        }
 
-		// Add glyph
+        // Add glyph
 		glyphMap.push({
 			fileName: fileName,
 			codePoint: currentCodePoint
@@ -163,49 +144,52 @@ function iconfontCSS(config) {
 		var content;
 		if (glyphMap.length) {
 
-			if (config.glyphMapFilePath) {
-				glyphMap.sort(function (a, b) {
-					var iconA = a.codePoint,
-						iconB = b.codePoint;
+            if (config.glyphMapFilePath) {
+                glyphMap.sort(function (a, b) {
+                    var iconA = a.codePoint,
+                        iconB = b.codePoint;
 
-					if (iconA < iconB) return -1;
-					if (iconA > iconB) return 1;
+                    if (iconA < iconB) return -1;
+                    if (iconA > iconB) return 1;
 
-					return 0;
-				});
-				glyphMapFile.contents = JSON.stringify(glyphMap);
-				console.log('Icons Map Saved!');
-			}
+                    return 0;
+                });
+                fs.writeFile(config.glyphMapFilePath, JSON.stringify(glyphMap), function (err) {
+                    if (err)
+                        throw err;
+                    console.log('Icons Map Saved!');
+                });
+            }
 
 			consolidate[config.engine](config.path, {
-				glyphs: glyphMap,
-				fontName: config.fontName,
-				fontPath: config.fontPath,
-				cssClass: config.cssClass,
-				cacheBuster: config.cacheBuster,
-				cacheBusterQueryString: config.cacheBuster ? '?' + config.cacheBuster : ''
-			}, function(err, html) {
-				if (err) {
-					throw new PluginError(PLUGIN_NAME, 'Error in template: ' + err.message);
-				}
+					glyphs: glyphMap,
+					fontName: config.fontName,
+					fontPath: config.fontPath,
+					cssClass: config.cssClass,
+					cacheBuster: config.cacheBuster,
+					cacheBusterQueryString: config.cacheBuster ? '?' + config.cacheBuster : ''
+				}, function(err, html) {
+					if (err) {
+						throw new gutil.PluginError(PLUGIN_NAME, 'Error in template: ' + err.message);
+					}
 
-				// TODO: remove condition and the else block for version 3.0
-				if( Buffer.from ){
-					content = Buffer.from(html);
-				}else{
-					content = Buffer(html);
-				}
+					// TODO: remove condition and the else block for version 3.0
+					if( Buffer.from ){
+						content = Buffer.from(html);
+					}else{
+						content = Buffer(html);
+					}
 
-				if (outputFile.isBuffer()) {
-					outputFile.contents = content;
-				} else {
-					outputFile.contents.write(content);
-					outputFile.contents.end();
-				}
+					if (outputFile.isBuffer()) {
+						outputFile.contents = content;
+					} else {
+						outputFile.contents.write(content);
+						outputFile.contents.end();
+					}
 
-				stream.push(outputFile);
+					stream.push(outputFile);
 
-				cb();
+					cb();
 			});
 		} else {
 			cb();
